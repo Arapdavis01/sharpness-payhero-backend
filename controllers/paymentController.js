@@ -42,7 +42,7 @@ exports.initiatePayment = async (req, res) => {
         // --- Build PayHero payload (corrected) ---
         const payload = {
             channel_id: PAYHERO_CHANNEL_ID,
-            phone_number: formattedPhone,   // or 'phone' – adjust if needed
+            phone_number: formattedPhone,   // might be 'phone' – check docs
             amount: amountNum.toFixed(2),
             external_reference: `INV-${Date.now()}`, // unique ref
             provider: 'm-pesa',             // specify provider
@@ -50,10 +50,12 @@ exports.initiatePayment = async (req, res) => {
             callback_url: PAYHERO_CALLBACK_URL,
         };
 
-        // --- Use the correct endpoint ---
-        const url = `${PAYHERO_BASE_URL}/initiate-stk-push`; // <-- changed
+        // --- Use the correct endpoint (if needed) ---
+        // If your PAYHERO_INITIATE_ENDPOINT is set to '/initiate-stk-push', use it.
+        // Otherwise, construct the URL directly.
+        const endpoint = process.env.PAYHERO_INITIATE_ENDPOINT || '/initiate-stk-push';
+        const url = `${PAYHERO_BASE_URL}${endpoint}`;
 
-        // Log the outgoing request for debugging
         console.log('📤 Sending to PayHero:', JSON.stringify(payload, null, 2));
 
         const response = await axios.post(url, payload, {
@@ -88,7 +90,7 @@ exports.initiatePayment = async (req, res) => {
 exports.handleCallback = async (req, res) => {
     try {
         console.log('Callback received:', req.body);
-        // TODO: update your database
+        // TODO: update your database with the payment status
         return res.status(200).json({ status: 'received' });
     } catch (error) {
         console.error('Callback error:', error);
