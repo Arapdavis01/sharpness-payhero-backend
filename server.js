@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 
 // ---------- CORS: allow your Vercel frontend ----------
 const allowedOrigins = [
-    'https://sharpness-payhero-frontend.vercel.app',   // ✅ YOUR FRONTEND
+    'https://sharpness-payhero-frontend.vercel.app',
     'http://localhost:3000',
     'http://localhost:5173',
 ];
