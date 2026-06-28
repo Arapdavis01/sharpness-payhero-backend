@@ -11,7 +11,8 @@ const {
 // ---------- Initiate Payment ----------
 exports.initiatePayment = async (req, res) => {
     try {
-        const { phone, amount } = req.body;
+        // 1️⃣ Read provider from request, default to 'm-pesa'
+        const { phone, amount, provider = 'm-pesa' } = req.body;
 
         // --- Validation ---
         if (!phone || !amount) {
@@ -39,14 +40,13 @@ exports.initiatePayment = async (req, res) => {
             });
         }
 
-        // --- Build PayHero payload (corrected) ---
+        // 2️⃣ Build PayHero payload with dynamic provider
         const payload = {
             channel_id: PAYHERO_CHANNEL_ID,
             phone_number: formattedPhone,
-            // IMPORTANT: amount must be a number, not a string
-            amount: amountNum,   // ← fixed: now sending as a number
+            amount: amountNum, // ✅ must be a number, not a string!
+            provider: provider, // ✅ dynamic: 'm-pesa', 'airtel', etc.
             external_reference: `INV-${Date.now()}`,
-            provider: 'm-pesa',
             description: 'Bomayangu payment',
             callback_url: PAYHERO_CALLBACK_URL,
         };
@@ -88,7 +88,7 @@ exports.initiatePayment = async (req, res) => {
 exports.handleCallback = async (req, res) => {
     try {
         console.log('Callback received:', req.body);
-        // TODO: update your database
+        // TODO: update your database with the payment status
         return res.status(200).json({ status: 'received' });
     } catch (error) {
         console.error('Callback error:', error);
