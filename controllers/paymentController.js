@@ -1,3 +1,15 @@
+const axios = require('axios');
+
+const {
+    PAYHERO_BASE_URL,
+    PAYHERO_USERNAME,
+    PAYHERO_PASSWORD,
+    PAYHERO_CHANNEL_ID,
+    PAYHERO_INITIATE_ENDPOINT,
+    PAYHERO_CALLBACK_URL,
+} = process.env;
+
+// ---------- Initiate Payment ----------
 exports.initiatePayment = async (req, res) => {
     try {
         const { phone, amount } = req.body;
@@ -69,12 +81,26 @@ exports.initiatePayment = async (req, res) => {
         });
     } catch (error) {
         console.error('PayHero initiation error:', error.response?.data || error.message);
-        // Forward the actual error from PayHero if possible
         const status = error.response?.status || 500;
         const message = error.response?.data?.message || error.message || 'Payment initiation failed';
         return res.status(status).json({
             success: false,
             message,
         });
+    }
+};
+
+// ---------- Callback Handler ----------
+exports.handleCallback = async (req, res) => {
+    try {
+        const callbackData = req.body;
+        console.log('PayHero callback received:', callbackData);
+
+        // TODO: Save to database, update order, etc.
+
+        return res.status(200).json({ status: 'received' });
+    } catch (error) {
+        console.error('Callback processing error:', error);
+        return res.status(200).json({ status: 'error', message: error.message });
     }
 };
