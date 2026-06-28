@@ -5,7 +5,6 @@ const {
     PAYHERO_USERNAME,
     PAYHERO_PASSWORD,
     PAYHERO_CHANNEL_ID,
-    PAYHERO_INITIATE_ENDPOINT,
     PAYHERO_CALLBACK_URL,
 } = process.env;
 
@@ -14,32 +13,20 @@ exports.initiatePayment = async (req, res) => {
     try {
         const { phone, amount } = req.body;
 
-        // --- Detailed validation ---
-        if (!phone && !amount) {
+        // --- Validation ---
+        if (!phone || !amount) {
             return res.status(400).json({
                 success: false,
-                message: 'Missing both phone and amount',
-            });
-        }
-        if (!phone) {
-            return res.status(400).json({
-                success: false,
-                message: 'Phone number is required',
-            });
-        }
-        if (!amount) {
-            return res.status(400).json({
-                success: false,
-                message: 'Amount is required',
+                message: 'Phone and amount are required',
             });
         }
 
-        // Clean phone – ensure 254 prefix
+        // Clean phone (remove non-digits)
         const digits = phone.replace(/\D/g, '');
         if (digits.length < 9 || digits.length > 12) {
             return res.status(400).json({
                 success: false,
-                message: 'Phone number must be between 9 and 12 digits',
+                message: 'Phone must be 9-12 digits',
             });
         }
         const formattedPhone = digits.startsWith('254') ? digits : '254' + digits;
@@ -52,16 +39,23 @@ exports.initiatePayment = async (req, res) => {
             });
         }
 
-        // Build PayHero payload
+        // --- Build PayHero payload (corrected) ---
         const payload = {
             channel_id: PAYHERO_CHANNEL_ID,
-            phone_number: formattedPhone,
+            phone_number: formattedPhone,   // or 'phone' – adjust if needed
             amount: amountNum.toFixed(2),
+            external_reference: `INV-${Date.now()}`, // unique ref
+            provider: 'm-pesa',             // specify provider
             description: 'Bomayangu payment',
             callback_url: PAYHERO_CALLBACK_URL,
         };
 
-        const url = `${PAYHERO_BASE_URL}${PAYHERO_INITIATE_ENDPOINT}`;
+        // --- Use the correct endpoint ---
+        const url = `${PAYHERO_BASE_URL}/initiate-stk-push`; // <-- changed
+
+        // Log the outgoing request for debugging
+        console.log('📤 Sending to PayHero:', JSON.stringify(payload, null, 2));
+
         const response = await axios.post(url, payload, {
             auth: {
                 username: PAYHERO_USERNAME,
@@ -76,13 +70,13 @@ exports.initiatePayment = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            message: 'Payment initiated successfully',
+            message: 'Payment initiated',
             data: response.data,
         });
     } catch (error) {
-        console.error('PayHero initiation error:', error.response?.data || error.message);
+        console.error('PayHero error:', error.response?.data || error.message);
         const status = error.response?.status || 500;
-        const message = error.response?.data?.message || error.message || 'Payment initiation failed';
+        const message = error.response?.data?.message || error.message;
         return res.status(status).json({
             success: false,
             message,
@@ -93,14 +87,11 @@ exports.initiatePayment = async (req, res) => {
 // ---------- Callback Handler ----------
 exports.handleCallback = async (req, res) => {
     try {
-        const callbackData = req.body;
-        console.log('PayHero callback received:', callbackData);
-
-        // TODO: Save to database, update order, etc.
-
+        console.log('Callback received:', req.body);
+        // TODO: update your database
         return res.status(200).json({ status: 'received' });
     } catch (error) {
-        console.error('Callback processing error:', error);
-        return res.status(200).json({ status: 'error', message: error.message });
+        console.error('Callback error:', error);
+        return res.status(200).json({ status: 'error' });
     }
 };
