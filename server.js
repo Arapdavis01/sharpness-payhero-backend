@@ -7,19 +7,20 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ---------- CORS: allow your frontend domain ----------
+// ---------- CORS: allow your Vercel frontend ----------
 const allowedOrigins = [
-    'https://sharpness-payhero-frontend.vercel.app',
+    'https://sharpness-payhero-frontend.vercel.app',   // ✅ YOUR FRONTEND
     'http://localhost:3000',
     'http://localhost:5173',
 ];
+
 app.use(cors({
     origin: function (origin, callback) {
         if (!origin) return callback(null, true);
         if (allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
-            callback(new Error('Not allowed by CORS'));
+            callback(new Error(`CORS: Origin ${origin} not allowed`));
         }
     },
     credentials: true,
@@ -36,7 +37,7 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// ---------- (Optional) root endpoint to show API status ----------
+// ---------- Root endpoint ----------
 app.get('/', (req, res) => {
     res.json({
         name: 'Bomayangu Payment API',
@@ -48,7 +49,6 @@ app.get('/', (req, res) => {
     });
 });
 
-// ---------- Start server ----------
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
