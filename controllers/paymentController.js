@@ -185,3 +185,39 @@ exports.handleCallback = async (req, res) => {
         return res.status(200).json({ status: 'error' });
     }
 };
+
+// ---------- Get Payment Status (for frontend polling) ----------
+// Public endpoint. Returns only the fields the payment page needs.
+// The reference itself acts as a bearer token for this specific transaction.
+exports.getPaymentStatus = async (req, res) => {
+    try {
+        const { reference } = req.params;
+        if (!reference) {
+            return res.status(400).json({ success: false, message: 'Reference required' });
+        }
+
+        const transaction = await Transaction.findOne({ reference })
+            .select('reference status amount phone completedAt resultCode resultDescription')
+            .lean();
+
+        if (!transaction) {
+            return res.status(404).json({ success: false, message: 'Transaction not found' });
+        }
+
+        return res.json({
+            success: true,
+            data: {
+                reference: transaction.reference,
+                status: transaction.status,
+                amount: transaction.amount,
+                phone: transaction.phone,
+                completedAt: transaction.completedAt,
+                resultCode: transaction.resultCode,
+                resultDescription: transaction.resultDescription,
+            },
+        });
+    } catch (err) {
+        console.error('Get payment status error:', err);
+        return res.status(500).json({ success: false, message: 'Failed to get status' });
+    }
+};
