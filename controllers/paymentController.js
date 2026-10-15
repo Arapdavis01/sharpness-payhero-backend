@@ -39,8 +39,6 @@ exports.initiatePayment = async (req, res) => {
             });
         }
 
-        // Generate a unique reference. This is the only value the callback
-        // will trust when updating a transaction.
         const reference = 'EM-' + Date.now() + '-' + crypto.randomBytes(3).toString('hex').toUpperCase();
 
         const transaction = await Transaction.create({
@@ -88,12 +86,14 @@ exports.initiatePayment = async (req, res) => {
         transaction.merchantRequestId = response.data?.MerchantRequestID || '';
         await transaction.save();
 
+        // Our reference wins over whatever PayHero returns.
         return res.status(200).json({
             success: true,
             message: 'Payment initiated',
             data: {
-                reference,
                 ...response.data,
+                reference: reference,
+                external_reference: reference,
             },
         });
     } catch (error) {
@@ -105,23 +105,40 @@ exports.initiatePayment = async (req, res) => {
 };
 
 // ---------- Callback Handler ----------
+// PayHero wraps its data inside a top-level "response" object. Example:
+// {
+//   "status": true,
+//   "response": {
+//     "ExternalReference": "EM-...",
+//     "ResultCode": 0,
+//     "Status": "Success",
+//     "MpesaReceiptNumber": "...",
+//     "Amount": 5,
+//     "Phone": "254...",
+//     "MerchantRequestID": "...",
+//     "CheckoutRequestID": "...",
+//     "ResultDesc": "..."
+//   },
+//   "sent_at": "..."
+// }
 exports.handleCallback = async (req, res) => {
     try {
         console.log('Callback received:', JSON.stringify(req.body, null, 2));
 
-        // PayHero places the external reference inside the payload. The exact
-        // key can vary by version, so we check the common ones.
         const body = req.body || {};
+        const r = body.response || body.data || body;
+
+        // Reference can be at the top level or inside response
         const reference =
+            r.ExternalReference ||
+            r.external_reference ||
+            r.reference ||
             body.external_reference ||
-            body.ExternalReference ||
             body.reference ||
-            body?.data?.external_reference ||
-            body?.data?.reference ||
             null;
 
         if (!reference) {
-            console.warn('Callback missing external reference');
+            console.warn('Callback missing external reference. Payload:', body);
             return res.status(200).json({ status: 'received' });
         }
 
@@ -131,29 +148,29 @@ exports.handleCallback = async (req, res) => {
             return res.status(200).json({ status: 'received' });
         }
 
-        const resultCode =
-            body.result_code ??
-            body.ResultCode ??
-            body?.data?.result_code ??
-            body?.data?.ResultCode ??
-            null;
+        // Already processed? Do not overwrite terminal states.
+        if (transaction.status === 'success' || transaction.status === 'failed') {
+            console.log('Transaction already finalized:', reference, transaction.status);
+            return res.status(200).json({ status: 'received' });
+        }
 
-        const resultDescription =
-            body.result_description ||
-            body.ResultDesc ||
-            body?.data?.result_description ||
-            '';
+        const resultCode = r.ResultCode ?? r.result_code ?? null;
+        const resultDescription = r.ResultDesc || r.result_description || '';
+        const payheroStatus = r.Status || r.status || '';
 
         let status = 'pending';
-        if (resultCode === 0 || resultCode === '0') {
+        if (resultCode === 0 || resultCode === '0' || String(payheroStatus).toLowerCase() === 'success') {
             status = 'success';
-        } else if (resultCode !== null) {
+        } else if (resultCode !== null || payheroStatus) {
             status = 'failed';
         }
 
         transaction.callbackPayload = body;
         transaction.resultCode = resultCode;
         transaction.resultDescription = resultDescription;
+        transaction.payheroReference = transaction.payheroReference || r.MpesaReceiptNumber || '';
+        transaction.checkoutRequestId = transaction.checkoutRequestId || r.CheckoutRequestID || '';
+        transaction.merchantRequestId = transaction.merchantRequestId || r.MerchantRequestID || '';
 
         if (status !== 'pending') {
             transaction.status = status;
@@ -161,10 +178,10 @@ exports.handleCallback = async (req, res) => {
         }
 
         await transaction.save();
+        console.log('Transaction updated:', reference, '->', status);
         return res.status(200).json({ status: 'received' });
     } catch (error) {
         console.error('Callback error:', error);
-        // Always 200 so PayHero does not retry indefinitely
         return res.status(200).json({ status: 'error' });
     }
 };
