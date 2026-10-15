@@ -62,6 +62,13 @@ const transactionSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
+// Single-field index for admin transactions list sorted by date
 transactionSchema.index({ createdAt: -1 });
+
+// Compound index for /api/admin/stats aggregations that filter by status and sort by date
+transactionSchema.index({ status: 1, createdAt: -1 });
+
+// Compound index for filtering by status and phone (used by search filters)
+transactionSchema.index({ status: 1, phone: 1 });
 
 module.exports = mongoose.model('Transaction', transactionSchema);
