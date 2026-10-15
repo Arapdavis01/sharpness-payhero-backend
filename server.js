@@ -7,7 +7,6 @@ const mongoose = require('mongoose');
 
 const paymentRoutes = require('./routes/paymentRoutes');
 const adminRoutes = require('./routes/adminRoutes');
-const seedRoutes = require('./routes/seedRoutes'); // TEMPORARY - remove after seeding
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -44,7 +43,6 @@ app.use(express.urlencoded({ extended: true }));
 // ---------- Routes ----------
 app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/seed', seedRoutes); // TEMPORARY - remove after seeding
 
 // ---------- Health check ----------
 app.get('/health', (req, res) => {
